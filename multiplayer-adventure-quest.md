@@ -156,7 +156,7 @@ A multiplayer, server-based adventure game where players connect to a central Ja
 
 ## 9. High-Level Architecture Diagram
 
-![High-Level Architecture](docs/architecture.svg)
+![High-Level Architecture](docs/architecture-diagram.svg)
 
 *Note: This SVG is generated from the architecture diagram and should be updated as the system evolves.*
 
@@ -164,7 +164,7 @@ A multiplayer, server-based adventure game where players connect to a central Ja
 
 ## 10. Flow Diagrams for Key Scenarios
 
-![Flow Diagrams for Key Scenarios](docs/flows.svg)
+![Flow Diagrams for Key Scenarios](docs/flow-diagram.svg)
 
 *Note: This SVG is generated from the flow diagrams and should be updated as the system evolves.*
 
