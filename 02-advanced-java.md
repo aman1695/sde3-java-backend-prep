@@ -258,209 +258,356 @@ Some may think finalize is always called, but it's not guaranteed.
 
 ---
 
-## 2. Reflection and Annotations
+## 2. Advanced Java Concepts
 
-### Theory
-Reflection is a feature in Java that allows you to inspect and manipulate classes, methods, fields, and constructors at runtime. Annotations are metadata that provide information to the compiler or runtime about your code.
+## 2.1 Memory Management
 
----
+### 2.1.1 JVM Memory Structure
 
-### Reflection in Java
+```
+JVM Memory
+├── Heap (shared by all threads)
+│   ├── Young Generation
+│   │   ├── Eden Space
+│   │   └── Survivor Spaces (S0, S1)
+│   └── Old Generation
+├── Non-Heap
+│   ├── Metaspace (replaces PermGen)
+│   ├── Code Cache
+│   └── Thread Stacks
+└── Native Memory
+```
 
-Reflection enables dynamic inspection and modification of classes and objects. It is commonly used in frameworks, libraries, and tools (like Spring, Hibernate, JUnit).
+### 2.1.2 Garbage Collection
 
-**Live Example: Inspecting a Class**
+**Types of GC:**
+- Serial GC: Single-threaded, good for small applications
+- Parallel GC: Multi-threaded, throughput-oriented
+- CMS (Concurrent Mark Sweep): Low pause time
+- G1 GC: Balanced approach, default in Java 9+
+- ZGC: Ultra-low latency (Java 11+)
+
+**GC Tuning Parameters:**
+```bash
+-Xms2g -Xmx4g                    # Initial and max heap size
+-XX:NewRatio=3                   # Ratio of old to young generation
+-XX:SurvivorRatio=8              # Ratio of Eden to survivor spaces
+-XX:+UseG1GC                     # Use G1 garbage collector
+```
+
+### 2.1.3 Memory Leaks
+
 ```java
-import java.lang.reflect.*;
+// Common memory leak patterns
+class MemoryLeak {
+    private static final List<Object> cache = new ArrayList<>();
+    
+    public void addToCache(Object obj) {
+        cache.add(obj); // Never removed
+    }
+}
 
-public class ReflectionDemo {
-    public static void main(String[] args) {
-        Class<?> clazz = String.class;
-        System.out.println("Class Name: " + clazz.getName());
-        Method[] methods = clazz.getDeclaredMethods();
-        System.out.println("Number of methods: " + methods.length);
+// Proper cache with eviction
+class ProperCache {
+    private static final Map<String, Object> cache = new ConcurrentHashMap<>();
+    private static final int MAX_SIZE = 1000;
+    
+    public void addToCache(String key, Object value) {
+        if (cache.size() >= MAX_SIZE) {
+            // Remove oldest entries
+            cache.clear();
+        }
+        cache.put(key, value);
     }
 }
 ```
-**Output:**
-```
-Class Name: java.lang.String
-Number of methods: 70 (number may vary by JDK)
-```
 
-**Live Example: Creating an Object Dynamically**
+## 2.2 Reflection
+
+### 2.2.1 Basic Reflection
+
 ```java
-import java.lang.reflect.*;
+// Get class information
+Class<?> clazz = String.class;
+System.out.println("Class name: " + clazz.getName());
+System.out.println("Superclass: " + clazz.getSuperclass());
 
-public class ReflectionCreate {
-    public static void main(String[] args) throws Exception {
-        Class<?> clazz = Class.forName("java.lang.String");
-        Constructor<?> cons = clazz.getConstructor(String.class);
-        Object obj = cons.newInstance("Hello");
-        System.out.println(obj);
-    }
+// Get methods
+Method[] methods = clazz.getMethods();
+for (Method method : methods) {
+    System.out.println("Method: " + method.getName());
+}
+
+// Get fields
+Field[] fields = clazz.getDeclaredFields();
+for (Field field : fields) {
+    System.out.println("Field: " + field.getName());
 }
 ```
-**Output:**
-```
-Hello
-```
 
-**Do's:**
-- Use reflection for frameworks, libraries, and tools that require dynamic behavior.
-- Handle exceptions (ClassNotFoundException, NoSuchMethodException, etc.) properly.
-- Use reflection for testing and debugging utilities.
+### 2.2.2 Dynamic Method Invocation
 
-**Don'ts:**
-- Don't use reflection for regular application logic (it is slower and less safe).
-- Don't use reflection to break encapsulation (accessing private fields/methods).
-- Don't ignore security and performance implications.
-
----
-
-### Annotations in Java
-
-Annotations are special markers in code that provide metadata. They can be processed at compile time or runtime.
-
-**Common Built-in Annotations:**
-- @Override
-- @Deprecated
-- @SuppressWarnings
-
-**Live Example: Custom Annotation**
 ```java
-import java.lang.annotation.*;
+class Calculator {
+    public int add(int a, int b) {
+        return a + b;
+    }
+}
 
+// Using reflection to invoke method
+Calculator calc = new Calculator();
+Class<?> clazz = calc.getClass();
+Method addMethod = clazz.getMethod("add", int.class, int.class);
+int result = (int) addMethod.invoke(calc, 5, 3);
+System.out.println("Result: " + result);
+```
+
+### 2.2.3 Creating Objects Dynamically
+
+```java
+// Create object using reflection
+Class<?> clazz = Class.forName("java.util.ArrayList");
+List<String> list = (List<String>) clazz.getDeclaredConstructor().newInstance();
+list.add("Hello");
+```
+
+## 2.3 Annotations
+
+### 2.3.1 Built-in Annotations
+
+```java
+// Method annotations
+@Override
+public String toString() { return "Custom toString"; }
+
+@Deprecated
+public void oldMethod() { }
+
+@SuppressWarnings("unchecked")
+public void methodWithWarnings() { }
+
+// Custom annotation
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-@interface MyAnnotation {
-    String value();
+@interface Test {
+    String value() default "";
+    int timeout() default 1000;
 }
 
-public class AnnotationDemo {
-    @MyAnnotation("Test Method")
-    public void test() {}
+// Using custom annotation
+@Test(value = "myTest", timeout = 5000)
+public void testMethod() { }
+```
 
-    public static void main(String[] args) throws Exception {
-        Method m = AnnotationDemo.class.getMethod("test");
-        MyAnnotation ann = m.getAnnotation(MyAnnotation.class);
-        System.out.println(ann.value());
+### 2.3.2 Annotation Processing
+
+```java
+// Process annotations at runtime
+Method[] methods = MyClass.class.getMethods();
+for (Method method : methods) {
+    if (method.isAnnotationPresent(Test.class)) {
+        Test test = method.getAnnotation(Test.class);
+        System.out.println("Test method: " + method.getName());
+        System.out.println("Test value: " + test.value());
     }
 }
 ```
-**Output:**
+
+## 2.4 Serialization
+
+### 2.4.1 Basic Serialization
+
+```java
+class Person implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private String name;
+    private int age;
+    
+    // Constructor, getters, setters...
+}
+
+// Serialize object
+Person person = new Person("John", 30);
+try (ObjectOutputStream oos = new ObjectOutputStream(
+        new FileOutputStream("person.ser"))) {
+    oos.writeObject(person);
+}
+
+// Deserialize object
+try (ObjectInputStream ois = new ObjectInputStream(
+        new FileInputStream("person.ser"))) {
+    Person deserializedPerson = (Person) ois.readObject();
+}
 ```
-Test Method
+
+### 2.4.2 Custom Serialization
+
+```java
+class CustomPerson implements Serializable {
+    private String name;
+    private transient String password; // Won't be serialized
+    
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        out.defaultWriteObject();
+        // Custom serialization logic
+    }
+    
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        // Custom deserialization logic
+    }
+}
 ```
 
-**Do's:**
-- Use annotations to provide metadata for frameworks and tools.
-- Use built-in annotations for better code clarity and compiler checks.
-- Document custom annotations clearly.
+## 2.5 NIO (New I/O)
 
-**Don'ts:**
-- Don't overuse custom annotations.
-- Don't rely on annotations for business logic.
-- Don't ignore retention policy and target when defining custom annotations.
+### 2.5.1 Channels and Buffers
 
----
+```java
+// File reading with NIO
+try (FileChannel channel = FileChannel.open(Paths.get("file.txt"))) {
+    ByteBuffer buffer = ByteBuffer.allocate(1024);
+    int bytesRead = channel.read(buffer);
+    
+    buffer.flip(); // Prepare for reading
+    while (buffer.hasRemaining()) {
+        System.out.print((char) buffer.get());
+    }
+}
 
-### Most Asked Interview Questions: Reflection (with Answers)
+// File writing with NIO
+try (FileChannel channel = FileChannel.open(Paths.get("output.txt"), 
+        StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+    ByteBuffer buffer = ByteBuffer.wrap("Hello NIO".getBytes());
+    channel.write(buffer);
+}
+```
 
-**Q: What is reflection in Java?**
-A: Reflection is the ability to inspect and manipulate classes, methods, fields, and constructors at runtime.
+### 2.5.2 Non-blocking I/O
 
-**Q: What are some use cases of reflection?**
-A: Frameworks (Spring, Hibernate), testing tools (JUnit), serialization, dependency injection, and dynamic proxies.
+```java
+// Non-blocking server
+ServerSocketChannel serverChannel = ServerSocketChannel.open();
+serverChannel.configureBlocking(false);
+serverChannel.bind(new InetSocketAddress(8080));
+
+Selector selector = Selector.open();
+serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+
+while (true) {
+    selector.select();
+    Set<SelectionKey> keys = selector.selectedKeys();
+    
+    for (SelectionKey key : keys) {
+        if (key.isAcceptable()) {
+            // Handle new connection
+        } else if (key.isReadable()) {
+            // Handle read operation
+        }
+    }
+}
+```
+
+## 2.6 Concurrency Utilities
+
+### 2.6.1 Executor Framework
+
+```java
+// Thread pool
+ExecutorService executor = Executors.newFixedThreadPool(4);
+
+// Submit tasks
+Future<String> future = executor.submit(() -> {
+    Thread.sleep(1000);
+    return "Task completed";
+});
+
+// Get result
+String result = future.get(5, TimeUnit.SECONDS);
+
+// Shutdown
+executor.shutdown();
+executor.awaitTermination(1, TimeUnit.MINUTES);
+```
+
+### 2.6.2 Concurrent Collections
+
+```java
+// Thread-safe collections
+ConcurrentHashMap<String, Integer> map = new ConcurrentHashMap<>();
+CopyOnWriteArrayList<String> list = new CopyOnWriteArrayList<>();
+BlockingQueue<String> queue = new LinkedBlockingQueue<>();
+
+// Atomic operations
+AtomicInteger counter = new AtomicInteger(0);
+counter.incrementAndGet();
+counter.compareAndSet(1, 2);
+```
+
+### 2.6.3 CompletableFuture (Java 8+)
+
+```java
+// Asynchronous operations
+CompletableFuture<String> future = CompletableFuture
+    .supplyAsync(() -> "Hello")
+    .thenApply(s -> s + " World")
+    .thenAccept(System.out::println);
+
+// Combining futures
+CompletableFuture<String> future1 = CompletableFuture.supplyAsync(() -> "Hello");
+CompletableFuture<String> future2 = CompletableFuture.supplyAsync(() -> "World");
+
+CompletableFuture<String> combined = future1.thenCombine(future2, (a, b) -> a + " " + b);
+```
+
+## 2.7 Interview Questions
+
+### 2.7.1 Memory Management
+
+**Q: What is the difference between stack and heap memory?**
+A:
+- Stack: Thread-specific, stores local variables and method calls
+- Heap: Shared by all threads, stores objects
+- Stack is faster, heap is larger but slower
+- Stack has automatic cleanup, heap requires garbage collection
+
+**Q: How does garbage collection work?**
+A:
+- Mark and Sweep: Mark reachable objects, sweep unreachable ones
+- Generational: Objects age and move to different generations
+- Young generation uses copying, old generation uses mark-compact
+- G1 GC divides heap into regions for better performance
+
+### 2.7.2 Reflection
 
 **Q: What are the drawbacks of using reflection?**
-A: Slower performance, security risks, and potential to break encapsulation.
+A:
+- Performance overhead due to dynamic method resolution
+- Security restrictions may prevent access
+- Code becomes harder to understand and maintain
+- Compile-time type checking is lost
 
-**Q: How do you create an object using reflection?**
-A: Use Class.forName() and Constructor.newInstance().
+**Q: When would you use reflection?**
+A:
+- Framework development (Spring, Hibernate)
+- Testing frameworks
+- Plugin architectures
+- Dynamic code generation
 
-**Q: Can you access private fields/methods using reflection?**
-A: Yes, by calling setAccessible(true), but it breaks encapsulation and should be avoided.
+### 2.7.3 Concurrency
 
----
+**Q: What is the difference between synchronized and ReentrantLock?**
+A:
+- ReentrantLock is more flexible (tryLock, fair ordering)
+- ReentrantLock can be interrupted while waiting
+- synchronized is simpler and automatically released
+- ReentrantLock requires explicit unlock in finally block
 
-### Most Asked Interview Questions: Annotations (with Answers)
-
-**Q: What are annotations in Java?**
-A: Metadata that provide information to the compiler or runtime about code.
-
-**Q: What is the difference between @Override and @Deprecated?**
-A: @Override marks a method as overriding a superclass method; @Deprecated marks code as outdated.
-
-**Q: How do you create a custom annotation?**
-A: Use @interface, specify retention policy and target.
-
-**Q: How can you access annotation values at runtime?**
-A: Use reflection (e.g., getAnnotation() on a class, method, or field).
-
-**Q: What is retention policy in annotations?**
-A: It defines whether the annotation is available at source, compile, or runtime.
-
----
-
-### Tricky & Coding Interview Questions on Reflection and Annotations
-
-**Q1: What happens if you use reflection to change a final field?**
-
-**Answer:**
-It may work at runtime, but is not guaranteed and can lead to unpredictable behavior.
-
-**Guess Output:**
-Some may think final fields are always immutable, but reflection can bypass this (not recommended).
-
----
-
-**Q2: Can you use annotations to enforce business logic?**
-
-**Answer:**
-No, annotations are metadata; enforcement must be done by frameworks or tools that process them.
-
-**Guess Output:**
-Some may think annotations alone can enforce logic, but they only provide information.
-
----
-
-**Q3: Write a code snippet to list all methods of a class using reflection.**
-
-**Answer:**
-```java
-Class<?> clazz = String.class;
-for (Method m : clazz.getDeclaredMethods()) {
-    System.out.println(m.getName());
-}
-```
-
-**Guess Output:**
-Some may expect only public methods, but getDeclaredMethods() returns all declared methods (including private).
-
----
-
-**Q4: What is the output of the following code?
-```java
-@Retention(RetentionPolicy.RUNTIME)
-@interface Marker {}
-
-@Marker
-class Test {}
-
-public class Main {
-    public static void main(String[] args) {
-        boolean present = Test.class.isAnnotationPresent(Marker.class);
-        System.out.println(present);
-    }
-}
-```
-**Answer:**
-true
-
-**Guess Output:**
-Some may think custom annotations are not available at runtime, but with RUNTIME retention, they are.
-
----
+**Q: What is the volatile keyword used for?**
+A:
+- Ensures visibility of changes across threads
+- Prevents instruction reordering
+- Does not provide atomicity
+- Used for simple flags and counters
 
 Add notes, code samples, and resources for each topic above. 

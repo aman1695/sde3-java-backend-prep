@@ -28,15 +28,30 @@ The Singleton pattern ensures that a class has only one instance and provides a 
 
 ### 2. Detailed Explanation by Example
 ```java
-public class Singleton {
-    private static Singleton instance;
-    private Singleton() {}
-    public static synchronized Singleton getInstance() {
+// Thread-safe singleton
+public class DatabaseConnection {
+    private static volatile DatabaseConnection instance;
+    private static final Object lock = new Object();
+    
+    private DatabaseConnection() { }
+    
+    public static DatabaseConnection getInstance() {
         if (instance == null) {
-            instance = new Singleton();
+            synchronized (lock) {
+                if (instance == null) {
+                    instance = new DatabaseConnection();
+                }
+            }
         }
         return instance;
     }
+}
+
+// Enum singleton (recommended)
+public enum DatabaseConnection {
+    INSTANCE;
+    
+    public void connect() { }
 }
 ```
 
@@ -64,25 +79,32 @@ The Factory pattern provides an interface for creating objects in a superclass b
 
 ### 2. Detailed Explanation by Example
 ```java
-interface Animal {
-    void speak();
+interface PaymentProcessor {
+    void processPayment(double amount);
 }
-class Dog implements Animal {
-    public void speak() { System.out.println("Woof"); }
+
+class CreditCardProcessor implements PaymentProcessor {
+    @Override
+    public void processPayment(double amount) { }
 }
-class Cat implements Animal {
-    public void speak() { System.out.println("Meow"); }
+
+class PayPalProcessor implements PaymentProcessor {
+    @Override
+    public void processPayment(double amount) { }
 }
-class AnimalFactory {
-    public static Animal getAnimal(String type) {
-        if ("dog".equalsIgnoreCase(type)) return new Dog();
-        else if ("cat".equalsIgnoreCase(type)) return new Cat();
-        throw new IllegalArgumentException("Unknown type");
+
+class PaymentProcessorFactory {
+    public static PaymentProcessor createProcessor(String type) {
+        switch (type.toLowerCase()) {
+            case "creditcard":
+                return new CreditCardProcessor();
+            case "paypal":
+                return new PayPalProcessor();
+            default:
+                throw new IllegalArgumentException("Unknown payment type");
+        }
     }
 }
-// Usage:
-// Animal a = AnimalFactory.getAnimal("dog");
-// a.speak();
 ```
 
 ### 3. Uses Based on Scenarios
@@ -108,27 +130,58 @@ The Builder pattern separates the construction of a complex object from its repr
 
 ### 2. Detailed Explanation by Example
 ```java
-class User {
-    private String name;
-    private int age;
-    private String email;
+public class User {
+    private final String email;
+    private final String name;
+    private final int age;
+    private final String phone;
+    
     private User(Builder builder) {
+        this.email = builder.email;
         this.name = builder.name;
         this.age = builder.age;
-        this.email = builder.email;
+        this.phone = builder.phone;
     }
+    
     public static class Builder {
+        private String email;
         private String name;
         private int age;
-        private String email;
-        public Builder setName(String name) { this.name = name; return this; }
-        public Builder setAge(int age) { this.age = age; return this; }
-        public Builder setEmail(String email) { this.email = email; return this; }
-        public User build() { return new User(this); }
+        private String phone;
+        
+        public Builder email(String email) {
+            this.email = email;
+            return this;
+        }
+        
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+        
+        public Builder age(int age) {
+            this.age = age;
+            return this;
+        }
+        
+        public Builder phone(String phone) {
+            this.phone = phone;
+            return this;
+        }
+        
+        public User build() {
+            return new User(this);
+        }
     }
 }
-// Usage:
-// User user = new User.Builder().setName("Aman").setAge(25).build();
+
+// Usage
+User user = new User.Builder()
+    .email("test@example.com")
+    .name("John Doe")
+    .age(30)
+    .phone("1234567890")
+    .build();
 ```
 
 ### 3. Uses Based on Scenarios
